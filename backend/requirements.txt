@@ -1,0 +1,13 @@
+yfinance
+pandas
+numpy
+matplotlib
+langgraph
+langchain-core
+feedparser
+textblob
+statsmodels
+tensorflow
+scikit-learn
+PyPortfolioOpt
+mcp<2
