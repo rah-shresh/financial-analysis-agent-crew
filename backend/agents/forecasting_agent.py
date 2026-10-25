@@ -29,6 +29,7 @@ Depends on `price_data` from the Preprocessor. If that's missing, this
 agent skips honestly rather than guessing a forecast out of nowhere.
 """
  
+import os
 import warnings
 import numpy as np
 import pandas as pd
@@ -178,6 +179,13 @@ def forecasting_node(state: AgentState) -> AgentState:
  
         # LSTM is a best-effort second opinion (Phase 6 upgrade). If it fails
         # for any reason, the ARIMA result above is still returned untouched.
+        if os.environ.get("ENABLE_LSTM", "true").strip().lower() in ("0", "false", "no", "off"):
+            # TensorFlow needs hundreds of MB of RAM -- too much for small free
+            # hosting tiers -- so deployments can switch the LSTM off. ARIMA is unaffected.
+            result["lstm"] = None
+            log.append("Forecasting \u2192 LSTM disabled (ENABLE_LSTM=false)")
+            return {**state, "forecast": result, "forecast_error": None, "agent_log": log}
+ 
         try:
             sentiment = state.get("sentiment")
             sentiment_score = sentiment["score"] if sentiment else 0.0

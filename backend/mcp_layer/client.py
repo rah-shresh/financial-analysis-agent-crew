@@ -57,11 +57,10 @@ class _MCPConnection:
  
     async def _connect(self):
         self._exit_stack = AsyncExitStack()
-        # The MCP SDK gives the subprocess only ~12 whitelisted env vars on Windows
-        # by default; pass the full environment so it behaves like a normal process.
-        server_params = StdioServerParameters(
-            command=sys.executable, args=[SERVER_SCRIPT], env=dict(os.environ)
-        )
+        # Deliberately NOT passing env=: the SDK's default gives the subprocess only a
+        # short whitelist of variables, which keeps secrets in this process's
+        # environment (JWT_SECRET, MONGODB_URI) out of the data-fetching server.
+        server_params = StdioServerParameters(command=sys.executable, args=[SERVER_SCRIPT])
         read, write = await self._exit_stack.enter_async_context(stdio_client(server_params))
         self._session = await self._exit_stack.enter_async_context(ClientSession(read, write))
         await self._session.initialize()
@@ -133,3 +132,13 @@ def call_tool(name: str, arguments: dict | None = None, timeout: float = 120):
     `timeout` (seconds) can be raised for tools with a slow first call."""
     return _connection.call_tool(name, arguments or {}, timeout=timeout)
  
+
+
+
+
+
+
+
+
+
+

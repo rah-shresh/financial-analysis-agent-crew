@@ -11,3 +11,8 @@ tensorflow
 scikit-learn
 PyPortfolioOpt
 mcp<2
+fastapi
+uvicorn
+PyJWT
+python-dotenv
+pymongo
