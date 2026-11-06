@@ -1,0 +1,35 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+ 
+@layer base {
+  html { background: #EAE4D3; }
+  body { @apply bg-paper font-sans text-ink antialiased; min-height: 100vh; }
+  h1, h2, h3 { @apply font-serif; }
+  :focus-visible { outline: 2px solid #9C3B2C; outline-offset: 2px; }
+  ::selection { background: #9C3B2C; color: #F3EFE3; }
+}
+ 
+@layer components {
+  /* the ledger look: ruled lines instead of boxes-with-shadows */
+  .rule-double { border-bottom: 3px double #26241D; }
+  .panel { @apply bg-card border border-rule-soft; }
+  .label { @apply font-sans text-[11px] uppercase tracking-wider text-ink-soft; }
+  .num { @apply font-mono; font-variant-numeric: tabular-nums; }
+  .btn-primary {
+    @apply bg-ink text-paper font-sans text-sm font-medium px-5 py-2.5 tracking-wide inline-block text-center
+           hover:bg-[#3a3729] disabled:opacity-50 disabled:cursor-not-allowed transition-colors;
+  }
+  .btn-ghost {
+    @apply border border-ink text-ink font-sans text-sm font-medium px-4 py-2 hover:bg-card transition-colors;
+  }
+  .field {
+    @apply w-full bg-card border border-ink px-3 py-2 font-mono text-sm text-ink
+           placeholder:text-ink-soft/60 focus:border-stamp;
+  }
+}
+ 
+@keyframes pulse-stamp { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+.pulse-stamp { animation: pulse-stamp 1.4s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .pulse-stamp { animation: none; } }
+ 

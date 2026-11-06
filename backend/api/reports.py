@@ -3,21 +3,28 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from api.deps import get_current_user, parse_object_id
 from api.schemas import ReportFull, ReportSummary
 from database.db import get_db
- 
+from utils.currency import infer_currency
+
 router = APIRouter(prefix="/api/reports", tags=["reports"])
- 
- 
+
+
+def _overview(doc: dict) -> dict:
+    """The stored overview, with `currency` filled in for reports saved before it was recorded
+    (their prices are in the ticker's home currency, which the suffix tells us)."""
+    return {"currency": infer_currency(doc["ticker"]), **doc["overview"]}
+
+
 def report_to_summary(doc: dict) -> ReportSummary:
     return ReportSummary(
         id=str(doc["_id"]), run_id=doc["run_id"], ticker=doc["ticker"],
-        created_at=doc["created_at"], overview=doc["overview"],
+        created_at=doc["created_at"], overview=_overview(doc),
     )
  
  
 def report_to_full(doc: dict) -> ReportFull:
     return ReportFull(
         id=str(doc["_id"]), run_id=doc["run_id"], ticker=doc["ticker"],
-        created_at=doc["created_at"], overview=doc["overview"], summary=doc["summary"],
+        created_at=doc["created_at"], overview=_overview(doc), summary=doc["summary"],
         technical=doc.get("technical"), sentiment=doc.get("sentiment"),
         forecast=doc.get("forecast"), risk=doc.get("risk"), price_series=doc.get("price_series"),
         agent_log=doc.get("agent_log", []), errors=doc.get("errors", {}), disclaimer=doc["disclaimer"],

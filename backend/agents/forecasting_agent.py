@@ -43,6 +43,13 @@ LSTM_WINDOW_SIZE = 20
 LSTM_EPOCHS = 20
  
  
+def _future_dates(close: pd.Series, steps: int) -> list[str]:
+    """The next `steps` weekdays after the last observed day (YYYY-MM-DD).
+    Exchange holidays aren't modeled, so these are approximate trading days."""
+    last = close.index[-1] if isinstance(close.index, pd.DatetimeIndex) else pd.Timestamp.today().normalize()
+    return [d.strftime("%Y-%m-%d") for d in pd.bdate_range(last + pd.Timedelta(days=1), periods=steps)]
+ 
+ 
 def _is_stationary(series: pd.Series, significance: float = 0.05) -> bool:
     """ADF test: null hypothesis is 'series has a unit root' (non-stationary).
     If p-value < significance, we reject the null -> series is stationary."""
@@ -89,6 +96,13 @@ def _fit_and_forecast(close: pd.Series, steps: int = FORECAST_DAYS) -> dict:
         "confidence_interval_95": {
             "lower": round(float(conf_int.iloc[-1, 0]), 2),
             "upper": round(float(conf_int.iloc[-1, 1]), 2),
+        },
+        # Day-by-day series so the dashboard can chart the forecast and its 95% band.
+        "path": {
+            "dates": _future_dates(close, steps),
+            "arima": [round(float(v), 2) for v in forecast_mean],
+            "ci_lower": [round(float(v), 2) for v in conf_int.iloc[:, 0]],
+            "ci_upper": [round(float(v), 2) for v in conf_int.iloc[:, 1]],
         },
     }
  
@@ -151,6 +165,7 @@ def _fit_and_forecast_lstm(close: pd.Series, sentiment_score: float = 0.0, steps
         "sentiment_used_as_feature": sentiment_score,
         "forecast_final_price": round(final_price, 2),
         "forecast_change_pct": round((final_price / last_actual - 1) * 100, 2),
+        "path": [round(float(v), 2) for v in predictions],
     }
  
  
@@ -214,6 +229,9 @@ def forecasting_node(state: AgentState) -> AgentState:
             "agent_log": log,
         }
  
+
+
+
 
 
 

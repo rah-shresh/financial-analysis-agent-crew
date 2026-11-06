@@ -44,7 +44,7 @@ app = FastAPI(title="Financial Analysis Agent Crew", version="0.8.0", lifespan=l
  
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.frontend_url],   # only the dashboard's own origin, not "*"
+    allow_origins=settings.frontend_urls,    # only the dashboard's own origin(s), not "*"
     allow_credentials=True,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
@@ -63,4 +63,15 @@ def health():
         raise HTTPException(status_code=503, detail="database unreachable")
     return {"status": "ok", "db": "ok"}
  
+
+
+
+
+
+
+
+
+
+
+
 

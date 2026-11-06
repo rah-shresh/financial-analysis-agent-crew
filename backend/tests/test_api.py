@@ -38,10 +38,23 @@ def fake_pipeline(ticker, mode="ok"):
     if mode == "crash":
         raise ValueError("secret internal detail that must never reach the user")
     if mode == "bad_ticker":
-        log.append("Preprocessor -> Failed")
-        yield {"preprocessor": {**base, "price_data": None, "preprocessing_error":
-               "MCP call_tool('fetch_ohlcv') failed: [RuntimeError] Error executing tool fetch_ohlcv: "
-               f"No data returned for '{ticker}'. Check the ticker symbol is correct."}}
+        err = ("MCP call_tool('fetch_ohlcv') failed: [RuntimeError] Error executing tool fetch_ohlcv: "
+               f"No data returned for '{ticker}'. Check the ticker symbol is correct.")
+        log.append("Preprocessor -> Failed (no data)")
+        s = {**base, "price_data": None, "preprocessing_error": err}
+        yield {"preprocessor": s}
+        log.append("Technical Analyst -> Skipped (no clean price data available)")
+        s = {**s, "technical_error": "Skipped: preprocessing failed, no data to analyze"}
+        yield {"technical_analyst": s}
+        log.append("Sentiment -> Done")                       # sentiment only needs the ticker
+        s = {**s, "sentiment": {"score": 0.0, "label": "neutral", "headlines": ["x"]}, "sentiment_error": None}
+        yield {"sentiment": s}
+        log.append("Forecasting -> Skipped (no clean price data available)")
+        s = {**s, "forecast_error": "Skipped: preprocessing failed, no data to forecast"}
+        yield {"forecasting": s}
+        log.append("Risk -> Skipped (no clean price data available)")
+        s = {**s, "risk_error": "Skipped: preprocessing failed, no data to assess"}
+        yield {"risk": s}
         return
  
     log.append("Preprocessor -> Done")
@@ -209,6 +222,21 @@ def test_full_run_lifecycle_and_report(client):
     assert client.get(f"/api/reports/{run['report_id']}", headers=auth(token)).json()["id"] == run["report_id"]
  
  
+def test_indian_stock_report_is_in_rupees_even_for_reports_saved_without_a_currency(client):
+    token = register(client)
+    run = client.post("/api/analysis/run", json={"ticker": "RELIANCE.NS"}, headers=auth(token)).json()
+    report_id = client.get(f"/api/analysis/{run['id']}", headers=auth(token)).json()["report_id"]
+
+    report = client.get(f"/api/reports/{report_id}", headers=auth(token)).json()
+    assert report["overview"]["currency"] == "INR" and "\u20b9120.00" in report["summary"]
+
+    # a report stored before `currency` existed: the API fills it in from the ticker
+    from bson import ObjectId
+    client.mdb.reports.update_one({"_id": ObjectId(report_id)}, {"$unset": {"overview.currency": ""}})
+    assert client.get(f"/api/reports/{report_id}", headers=auth(token)).json()["overview"]["currency"] == "INR"
+    assert client.get("/api/reports", headers=auth(token)).json()[0]["overview"]["currency"] == "INR"
+
+
 def test_bad_ticker_run_fails_with_friendly_error(client, monkeypatch):
     monkeypatch.setattr(run_executor, "stream_analysis", lambda t: fake_pipeline(t, "bad_ticker"))
     token = register(client)
@@ -281,6 +309,68 @@ def test_reports_pagination(client):
     assert len(client.get("/api/reports?limit=2", headers=auth(token)).json()) == 2
     assert client.get("/api/reports?limit=0", headers=auth(token)).status_code == 422
  
+ 
+# ------------------------------------------------------- per-agent progress
+def test_completed_run_reports_every_agent_done_with_its_own_log_lines(client):
+    token = register(client)
+    run_id = client.post("/api/analysis/run", json={"ticker": "TSLA"}, headers=auth(token)).json()["id"]
+    agents = client.get(f"/api/analysis/{run_id}", headers=auth(token)).json()["agents"]
+    assert [a["name"] for a in agents] == AGENT_ORDER
+    assert all(a["status"] == "done" and a["message"] is None for a in agents)
+    assert agents[0]["log"] == ["Preprocessor -> Done"] and agents[4]["log"] == ["Risk -> Done"]   # each agent keeps ONLY its own lines
+ 
+ 
+def test_failed_run_shows_which_agent_failed_and_which_were_skipped(client, monkeypatch):
+    monkeypatch.setattr(run_executor, "stream_analysis", lambda t: fake_pipeline(t, "bad_ticker"))
+    token = register(client)
+    run_id = client.post("/api/analysis/run", json={"ticker": "ZZZZ"}, headers=auth(token)).json()["id"]
+    by_name = {a["name"]: a for a in client.get(f"/api/analysis/{run_id}", headers=auth(token)).json()["agents"]}
+    assert by_name["preprocessor"]["status"] == "failed"
+    assert by_name["preprocessor"]["message"].startswith("No data returned for 'ZZZZ'")
+    assert "MCP" not in by_name["preprocessor"]["message"]
+    assert by_name["technical_analyst"]["status"] == by_name["forecasting"]["status"] == by_name["risk"]["status"] == "skipped"
+    assert by_name["sentiment"]["status"] == "done"
+ 
+ 
+def _insert_run(client, token, status, agent_results=None):
+    uid = client.get("/api/auth/me", headers=auth(token)).json()["id"]
+    doc = {"user_id": uid, "ticker": "AAPL", "status": status, "created_at": datetime.now(timezone.utc)}
+    if agent_results:
+        doc["agent_results"] = agent_results
+    return str(client.mdb.analysis_runs.insert_one(doc).inserted_id)
+ 
+ 
+def test_queued_run_has_every_agent_queued(client):
+    token = register(client)
+    rid = _insert_run(client, token, "queued")
+    agents = client.get(f"/api/analysis/{rid}", headers=auth(token)).json()["agents"]
+    assert [a["status"] for a in agents] == ["queued"] * 5
+ 
+ 
+def test_running_run_marks_exactly_the_next_agent_as_running(client):
+    token = register(client)
+    done = {"status": "done", "message": None, "log": ["x"]}
+    rid = _insert_run(client, token, "running", {"preprocessor": done, "technical_analyst": done})
+    statuses = [a["status"] for a in client.get(f"/api/analysis/{rid}", headers=auth(token)).json()["agents"]]
+    assert statuses == ["done", "done", "running", "queued", "queued"]
+ 
+ 
+def test_run_that_ended_early_does_not_leave_agents_looking_queued(client):
+    token = register(client)
+    rid = _insert_run(client, token, "failed", {"preprocessor": {"status": "done", "message": None, "log": []}})
+    agents = client.get(f"/api/analysis/{rid}", headers=auth(token)).json()["agents"]
+    assert [a["status"] for a in agents] == ["done", "skipped", "skipped", "skipped", "skipped"]
+ 
+ 
+def test_cors_allows_both_localhost_spellings_but_not_strangers(client):
+    for origin in ("http://localhost:5173", "http://127.0.0.1:5173"):
+        r = client.options("/api/auth/login", headers={"Origin": origin, "Access-Control-Request-Method": "POST"})
+        assert r.headers.get("access-control-allow-origin") == origin
+    r = client.options("/api/auth/login", headers={"Origin": "https://evil.example", "Access-Control-Request-Method": "POST"})
+    assert "access-control-allow-origin" not in r.headers
+ 
+
+
 
 
 

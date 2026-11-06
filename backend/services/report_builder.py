@@ -8,10 +8,22 @@ sentiment scorer). It deliberately does NOT produce buy/sell/hold advice.
 """
  
 import math
+import re
 from datetime import datetime, timezone
 from typing import Any
  
 import numpy as np
+
+from utils.currency import format_money, infer_currency
+
+# The MCP layer wraps tool errors ("MCP call_tool('x') failed: [RuntimeError] Error executing
+# tool x: <real reason>"). That is plumbing, not something a user should read in their log.
+_MCP_WRAPPER = re.compile(r"MCP call_tool\('[^']*'\) failed: \[\w+\] (?:Error executing tool \w+: )?")
+ 
+ 
+def clean_log_line(line: str) -> str:
+    return _MCP_WRAPPER.sub("", line)
+ 
  
 DISCLAIMER = (
     "For educational and informational purposes only. This is not financial advice. "
@@ -51,10 +63,27 @@ def _rsi_zone(rsi: float) -> str:
     return "the neutral range"
  
  
+# A forecast within this many percent of "no change" is flat, not a direction.
+FLAT_PCT = 0.5
+
+
+def models_agree(arima_pct: float, lstm_pct: float) -> bool | None:
+    """True if both models lean the same way, False if they lean opposite ways, None if either sees
+    essentially no move (ARIMA often returns ~0.0%, which is not a disagreement with a -7% LSTM)."""
+    if abs(arima_pct) < FLAT_PCT or abs(lstm_pct) < FLAT_PCT:
+        return None
+    return (arima_pct > 0) == (lstm_pct > 0)
+
+
+def _currency(state: dict) -> str:
+    """The currency the prices are quoted in: what the data tool reported, else a guess from the ticker."""
+    return state.get("currency") or infer_currency(state["ticker"])
+
+
 def build_overview(state: dict) -> dict:
     """The few headline signals for the dashboard's Overview card."""
     tech, sent, fc, risk = (state.get(k) for k in ("technical_metrics", "sentiment", "forecast", "risk"))
-    overview: dict[str, Any] = {"ticker": state["ticker"]}
+    overview: dict[str, Any] = {"ticker": state["ticker"], "currency": _currency(state)}
     if tech:
         overview.update(latest_close=tech["latest_close"], trend=tech["trend"], rsi_14=tech["rsi_14"])
     if sent:
@@ -64,7 +93,7 @@ def build_overview(state: dict) -> dict:
         lstm = fc.get("lstm")
         if lstm:
             overview["forecast_lstm_pct"] = lstm["forecast_change_pct"]
-            overview["forecast_models_agree"] = (fc["forecast_change_pct"] > 0) == (lstm["forecast_change_pct"] > 0)
+            overview["forecast_models_agree"] = models_agree(fc["forecast_change_pct"], lstm["forecast_change_pct"])
     if risk:
         overview.update(
             risk_label=risk["risk_label"],
@@ -79,14 +108,15 @@ def build_overview(state: dict) -> dict:
  
 def build_summary(state: dict) -> str:
     t = state["ticker"]
+    cur = _currency(state)
     tech, sent, fc, risk = (state.get(k) for k in ("technical_metrics", "sentiment", "forecast", "risk"))
     parts = []
  
     if tech:
         direction = "above" if "above" in tech["trend"] else "below"
         parts.append(
-            f"{t} last closed at ${tech['latest_close']:.2f}, {direction} its 20-day average "
-            f"(${tech['sma_20']:.2f}), and RSI of {tech['rsi_14']:.1f} sits in {_rsi_zone(tech['rsi_14'])}."
+            f"{t} last closed at {format_money(tech['latest_close'], cur)}, {direction} its 20-day average "
+            f"({format_money(tech['sma_20'], cur)}), and RSI of {tech['rsi_14']:.1f} sits in {_rsi_zone(tech['rsi_14'])}."
         )
     if sent:
         parts.append(
@@ -98,15 +128,17 @@ def build_summary(state: dict) -> str:
         ci = fc["confidence_interval_95"]
         line = (
             f"Over the next {fc['forecast_days']} trading days, ARIMA projects {fc['forecast_change_pct']:+.1f}% "
-            f"(95% range ${ci['lower']:.0f}-${ci['upper']:.0f})"
+            f"(95% range {format_money(ci['lower'], cur, 0)}-{format_money(ci['upper'], cur, 0)})"
         )
         lstm = fc.get("lstm")
         if lstm:
-            agree = (fc["forecast_change_pct"] > 0) == (lstm["forecast_change_pct"] > 0)
-            line += (
-                f", while LSTM projects {lstm['forecast_change_pct']:+.1f}% "
-                f"- the two models {'agree' if agree else 'disagree'} on direction"
-            )
+            agree = models_agree(fc["forecast_change_pct"], lstm["forecast_change_pct"])
+            verdict = {
+                True: "the two models agree on direction",
+                False: "the two models disagree on direction",
+                None: f"one model sees almost no move (under {FLAT_PCT}%), so they neither clearly agree nor disagree",
+            }[agree]
+            line += f", while LSTM projects {lstm['forecast_change_pct']:+.1f}% - {verdict}"
         parts.append(line + ". The range is wide: treat the numbers as scenarios, not predictions.")
     if risk:
         text = (
@@ -149,11 +181,13 @@ def build_report(state: dict, run_id: str, user_id: str) -> dict:
         "forecast": to_jsonable(state.get("forecast")),
         "risk": to_jsonable(state.get("risk")),
         "price_series": _price_series(state["price_data"]),
-        "agent_log": list(state.get("agent_log", [])),
+        "agent_log": [clean_log_line(l) for l in state.get("agent_log", [])],
         "errors": errors,
         "disclaimer": DISCLAIMER,
     }
  
+
+
 
 
 

@@ -19,8 +19,8 @@ from bson import ObjectId
  
 from config import settings
 from database.db import get_db
-from orchestrator.graph import stream_analysis
-from services.report_builder import build_report
+from orchestrator.graph import NODE_ERROR_KEYS, agent_status, stream_analysis
+from services.report_builder import build_report, clean_log_line
  
 log = logging.getLogger("fincrew.runner")
  
@@ -68,12 +68,22 @@ def execute_run(run_id_str: str) -> None:
         try:
             final_state = None
             completed: list[str] = []
+            results: dict[str, dict] = {}
+            seen_lines = 0
             for chunk in stream_analysis(run["ticker"]):
                 node, node_state = next(iter(chunk.items()))
                 final_state = node_state          # every node returns the full state
                 completed.append(node)
-                _update(run_id, completed_agents=list(completed),
-                        agent_log=list(node_state.get("agent_log", [])))
+                log_lines = [clean_log_line(l) for l in node_state.get("agent_log", [])]
+                status = agent_status(node, node_state)
+                results[node] = {
+                    "status": status,
+                    "message": friendly_error(node_state.get(NODE_ERROR_KEYS[node])) if status != "done" else None,
+                    # log lines added since the previous agent finished belong to this agent
+                    "log": log_lines[seen_lines:],
+                }
+                seen_lines = len(log_lines)
+                _update(run_id, completed_agents=list(completed), agent_log=log_lines, agent_results=results)
  
             if final_state is None:
                 raise RuntimeError("The pipeline produced no output")
@@ -91,6 +101,8 @@ def execute_run(run_id_str: str) -> None:
             _update(run_id, status="failed", finished_at=_now(),
                     error="The analysis failed unexpectedly. Please try again.")
  
+
+
 
 
 

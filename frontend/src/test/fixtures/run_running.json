@@ -1,0 +1,73 @@
+{
+  "id": "6add6b6390988bc34fc03439",
+  "ticker": "TSLA",
+  "status": "running",
+  "created_at": "2026-10-25T02:37:23.227000Z",
+  "started_at": "2026-10-25T02:37:23.227000Z",
+  "finished_at": null,
+  "error": null,
+  "agent_order": [
+    "preprocessor",
+    "technical_analyst",
+    "sentiment",
+    "forecasting",
+    "risk"
+  ],
+  "completed_agents": [
+    "preprocessor",
+    "technical_analyst"
+  ],
+  "agents": [
+    {
+      "name": "preprocessor",
+      "status": "done",
+      "message": null,
+      "log": [
+        "Preprocessor → Done (251 rows cleaned)"
+      ]
+    },
+    {
+      "name": "technical_analyst",
+      "status": "done",
+      "message": null,
+      "log": [
+        "Technical Analyst → Done (RSI 64.88, above SMA (bullish bias))"
+      ]
+    },
+    {
+      "name": "sentiment",
+      "status": "running",
+      "message": null,
+      "log": []
+    },
+    {
+      "name": "forecasting",
+      "status": "queued",
+      "message": null,
+      "log": []
+    },
+    {
+      "name": "risk",
+      "status": "queued",
+      "message": null,
+      "log": []
+    }
+  ],
+  "agent_log": [
+    "Preprocessor → Done (251 rows cleaned)",
+    "Technical Analyst → Done (RSI 64.88, above SMA (bullish bias))"
+  ],
+  "report_id": null
+}
+
+
+
+
+
+
+
+
+
+
+
+

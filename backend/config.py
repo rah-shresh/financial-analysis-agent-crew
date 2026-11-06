@@ -32,7 +32,13 @@ class Settings:
         self.mongodb_db = os.environ.get("MONGODB_DB", "financial_crew")
         self.jwt_secret = os.environ.get("JWT_SECRET", "")
         self.jwt_expire_minutes = int(os.environ.get("JWT_EXPIRE_MINUTES", "1440"))  # 24h
-        self.frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:5173")
+        # Comma-separated allowed dashboard origins. Vite serves on http://localhost:5173, and
+        # "localhost" vs "127.0.0.1" count as DIFFERENT origins to a browser -> allow both.
+        self.frontend_urls = [
+            u.strip().rstrip("/")
+            for u in os.environ.get("FRONTEND_URL", "http://localhost:5173,http://127.0.0.1:5173").split(",")
+            if u.strip()
+        ]
         # How many analyses may execute at the same time (extra ones wait as "queued").
         self.max_concurrent_runs = int(os.environ.get("MAX_CONCURRENT_RUNS", "2"))
  
@@ -54,6 +60,9 @@ class Settings:
  
 settings = Settings()
  
+
+
+
 
 
 

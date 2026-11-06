@@ -6,7 +6,7 @@ langgraph
 langchain-core
 feedparser
 textblob
-statsmodels
+statsmodels==0.14.2
 tensorflow
 scikit-learn
 PyPortfolioOpt

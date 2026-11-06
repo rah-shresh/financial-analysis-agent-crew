@@ -1,0 +1,10 @@
+{
+  "access_token": "test-token-not-a-real-credential",
+  "token_type": "bearer",
+  "user": {
+    "id": "6adcdbc5de4c9afaf08fcec9",
+    "name": "Fixture User",
+    "email": "fx@example.com",
+    "created_at": "2026-10-24T16:24:37.476820Z"
+  }
+}

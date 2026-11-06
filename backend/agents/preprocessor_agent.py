@@ -13,18 +13,19 @@ indicators) is completely unchanged — this was a refactor of the data
 *source*, not the logic.
 """
  
-import numpy as np
 import pandas as pd
  
 from orchestrator.state import AgentState
 from mcp_layer.client import call_tool
- 
- 
-def _fetch_data(ticker: str, period: str = "1y") -> pd.DataFrame:
+from utils.currency import infer_currency
+
+
+def _fetch_data(ticker: str, period: str = "1y") -> tuple[pd.DataFrame, str]:
     """Fetch OHLCV data via the MCP `fetch_ohlcv` tool and rebuild it as a
     DataFrame — the tool returns plain JSON-serializable lists (MCP results
     travel as data, not Python objects), so it's reconstructed here into
-    the same shape the rest of this agent (and Phase 0-6) already expects."""
+    the same shape the rest of this agent (and Phase 0-6) already expects.
+    Also returns the currency the prices are quoted in."""
     result = call_tool("fetch_ohlcv", {"ticker": ticker, "period": period})
  
     df = pd.DataFrame(
@@ -38,7 +39,7 @@ def _fetch_data(ticker: str, period: str = "1y") -> pd.DataFrame:
         index=pd.to_datetime(result["dates"]),
     )
     df.index.name = "Date"
-    return df
+    return df, result.get("currency") or infer_currency(ticker)
  
  
 def _clean_data(df: pd.DataFrame) -> pd.DataFrame:
@@ -76,7 +77,7 @@ def preprocessor_node(state: AgentState) -> AgentState:
     log = state.get("agent_log", [])
  
     try:
-        raw_df = _fetch_data(ticker)
+        raw_df, currency = _fetch_data(ticker)
         clean_df = _clean_data(raw_df)
         enriched_df = _add_indicators(clean_df)
  
@@ -84,6 +85,7 @@ def preprocessor_node(state: AgentState) -> AgentState:
         return {
             **state,
             "price_data": enriched_df,
+            "currency": currency,
             "preprocessing_error": None,
             "agent_log": log,
         }
@@ -92,6 +94,7 @@ def preprocessor_node(state: AgentState) -> AgentState:
         return {
             **state,
             "price_data": None,
+            "currency": None,
             "preprocessing_error": str(e),
             "agent_log": log,
         }

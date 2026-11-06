@@ -11,6 +11,27 @@ from services.run_executor import execute_run
 router = APIRouter(prefix="/api/analysis", tags=["analysis"])
  
  
+def build_agents(doc: dict) -> list[dict]:
+    """Every agent in pipeline order. Finished ones come from the saved results; the
+    first unfinished one of a running run is 'running'; the rest are 'queued' (or
+    'skipped' if the run already ended without reaching them)."""
+    results = doc.get("agent_results", {})
+    ended = doc["status"] in ("completed", "failed")
+    running_marked = False
+    agents = []
+    for name in AGENT_ORDER:
+        if name in results:
+            agents.append({"name": name, **results[name]})
+        elif ended:
+            agents.append({"name": name, "status": "skipped", "message": "This run ended before it got here."})
+        elif doc["status"] == "running" and not running_marked:
+            running_marked = True
+            agents.append({"name": name, "status": "running"})
+        else:
+            agents.append({"name": name, "status": "queued"})
+    return agents
+ 
+ 
 def run_to_public(doc: dict) -> RunPublic:
     return RunPublic(
         id=str(doc["_id"]),
@@ -22,6 +43,7 @@ def run_to_public(doc: dict) -> RunPublic:
         error=doc.get("error"),
         agent_order=AGENT_ORDER,
         completed_agents=doc.get("completed_agents", []),
+        agents=build_agents(doc),
         agent_log=doc.get("agent_log", []),
         report_id=doc.get("report_id"),
     )
@@ -72,6 +94,8 @@ def get_run_report(run_id: str, user: dict = Depends(get_current_user)):
     from api.reports import get_owned_report, report_to_full
     return report_to_full(get_owned_report(run["report_id"], user))
  
+
+
 
 
 

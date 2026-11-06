@@ -73,6 +73,13 @@ class RunRequest(BaseModel):
         return v.upper()
  
  
+class AgentStatus(BaseModel):
+    name: str
+    status: str                        # queued | running | done | skipped | failed
+    message: Optional[str] = None      # why it was skipped / failed
+    log: list[str] = []                # this agent's own log lines
+ 
+ 
 class RunPublic(BaseModel):
     id: str
     ticker: str
@@ -83,6 +90,7 @@ class RunPublic(BaseModel):
     error: Optional[str] = None
     agent_order: list[str]
     completed_agents: list[str]
+    agents: list[AgentStatus]
     agent_log: list[str]
     report_id: Optional[str] = None
  
@@ -106,6 +114,8 @@ class ReportFull(ReportSummary):
     errors: dict[str, str]
     disclaimer: str
  
+
+
 
 
 

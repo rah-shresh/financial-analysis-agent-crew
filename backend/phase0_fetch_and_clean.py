@@ -22,7 +22,6 @@ Usage:
 """
  
 import sys
-import numpy as np
 import pandas as pd
 import yfinance as yf
 import matplotlib
@@ -82,7 +81,6 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
  
         # Rebuild a "cleaned" close price series from the capped returns
         cleaned_close = df["Close"].copy()
-        first_valid_idx = cleaned_close.index[0]
         for i in range(1, len(cleaned_close)):
             if outlier_mask.iloc[i]:
                 prev_price = cleaned_close.iloc[i - 1]

@@ -1,0 +1,85 @@
+{
+  "id": "6add6b6b90988bc34fc0343c",
+  "ticker": "ZZZZ",
+  "status": "failed",
+  "created_at": "2026-10-25T02:37:31.852000Z",
+  "started_at": "2026-10-25T02:37:31.852000Z",
+  "finished_at": "2026-10-25T02:37:31.862000Z",
+  "error": "No data returned for 'ZZZZ'. Check the ticker symbol is correct.",
+  "agent_order": [
+    "preprocessor",
+    "technical_analyst",
+    "sentiment",
+    "forecasting",
+    "risk"
+  ],
+  "completed_agents": [
+    "preprocessor",
+    "technical_analyst",
+    "sentiment",
+    "forecasting",
+    "risk"
+  ],
+  "agents": [
+    {
+      "name": "preprocessor",
+      "status": "failed",
+      "message": "No data returned for 'ZZZZ'. Check the ticker symbol is correct.",
+      "log": [
+        "Preprocessor → Failed (No data returned for 'ZZZZ'. Check the ticker symbol is correct.)"
+      ]
+    },
+    {
+      "name": "technical_analyst",
+      "status": "skipped",
+      "message": "Skipped: preprocessing failed, no data to analyze",
+      "log": [
+        "Technical Analyst → Skipped (no clean price data available)"
+      ]
+    },
+    {
+      "name": "sentiment",
+      "status": "failed",
+      "message": "MCP call_tool('fetch_news_headlines') failed: [RuntimeError] no headlines",
+      "log": [
+        "Sentiment → Failed (no headlines)"
+      ]
+    },
+    {
+      "name": "forecasting",
+      "status": "skipped",
+      "message": "Skipped: preprocessing failed, no data to forecast",
+      "log": [
+        "Forecasting → Skipped (no clean price data available)"
+      ]
+    },
+    {
+      "name": "risk",
+      "status": "skipped",
+      "message": "Skipped: preprocessing failed, no data to assess",
+      "log": [
+        "Risk → Skipped (no clean price data available)"
+      ]
+    }
+  ],
+  "agent_log": [
+    "Preprocessor → Failed (No data returned for 'ZZZZ'. Check the ticker symbol is correct.)",
+    "Technical Analyst → Skipped (no clean price data available)",
+    "Sentiment → Failed (no headlines)",
+    "Forecasting → Skipped (no clean price data available)",
+    "Risk → Skipped (no clean price data available)"
+  ],
+  "report_id": null
+}
+
+
+
+
+
+
+
+
+
+
+
+

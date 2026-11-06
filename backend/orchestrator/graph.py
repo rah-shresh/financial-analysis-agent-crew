@@ -61,6 +61,26 @@ def stream_analysis(ticker: str):
     initial_state: AgentState = {"ticker": ticker.upper(), "agent_log": []}
     yield from app.stream(initial_state, stream_mode="updates")
  
+ 
+# Which state field holds each node's error message (None = it succeeded).
+NODE_ERROR_KEYS = {
+    "preprocessor": "preprocessing_error",
+    "technical_analyst": "technical_error",
+    "sentiment": "sentiment_error",
+    "forecasting": "forecast_error",
+    "risk": "risk_error",
+}
+ 
+ 
+def agent_status(node: str, state: dict) -> str:
+    """'done'; 'skipped' (an input it needed was missing, so it honestly didn't run); or 'failed'."""
+    message = state.get(NODE_ERROR_KEYS[node])
+    if not message:
+        return "done"
+    return "skipped" if str(message).startswith("Skipped") else "failed"
+ 
+
+
 
 
 

@@ -17,6 +17,7 @@ class AgentState(TypedDict, total=False):
  
     # ---- written by the Preprocessor agent ----
     price_data: Optional[pd.DataFrame]   # cleaned OHLCV + SMA/EMA
+    currency: Optional[str]              # ISO code the prices are quoted in (USD, INR, ...)
     preprocessing_error: Optional[str]
  
     # ---- written by the Technical Analyst agent ----

@@ -20,6 +20,7 @@ import numpy as np
 import pandas as pd
  
 from orchestrator.state import AgentState
+from utils.currency import format_money, infer_currency
  
 RISK_FREE_RATE_ANNUAL = 0.07  # approx. a safe benchmark (e.g. short-term govt bond yield)
 TRADING_DAYS_PER_YEAR = 252
@@ -86,6 +87,12 @@ def _run_monte_carlo(close: pd.Series, daily_returns: pd.Series,
         "probability_of_loss_pct": round(float(np.mean(final_prices < last_price) * 100), 1),
         "worst_case_5pct": round(float(np.percentile(final_prices, 5)), 2),
         "best_case_95pct": round(float(np.percentile(final_prices, 95)), 2),
+        # Per-day band across all simulations (day 1..horizon) for the fan chart.
+        "fan": {
+            "p5": [round(float(v), 2) for v in np.percentile(price_paths, 5, axis=0)],
+            "median": [round(float(v), 2) for v in np.percentile(price_paths, 50, axis=0)],
+            "p95": [round(float(v), 2) for v in np.percentile(price_paths, 95, axis=0)],
+        },
     }
  
  
@@ -114,6 +121,7 @@ def risk_node(state: AgentState) -> AgentState:
  
         latest_price = float(close.iloc[-1])
         var_95_dollar = round(latest_price * var_95_pct, 2)
+        currency = state.get("currency") or infer_currency(state["ticker"])
  
         annualized_volatility = float(daily_returns.std() * np.sqrt(TRADING_DAYS_PER_YEAR))
  
@@ -125,7 +133,7 @@ def risk_node(state: AgentState) -> AgentState:
                 "daily_dollar_per_share": var_95_dollar,
                 "interpretation": (
                     f"On 95% of trading days, a one-day loss is not expected to exceed "
-                    f"{abs(round(var_95_pct * 100, 2))}% (~${abs(var_95_dollar)} per share "
+                    f"{abs(round(var_95_pct * 100, 2))}% (~{format_money(abs(var_95_dollar), currency)} per share "
                     f"at the current price)."
                 ),
             },
@@ -166,6 +174,8 @@ def risk_node(state: AgentState) -> AgentState:
             "agent_log": log,
         }
  
+
+
 
 
 
